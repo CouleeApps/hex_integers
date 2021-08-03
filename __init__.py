@@ -18,10 +18,10 @@ def convert_to_hexint(value):
 		return '{' + ', '.join(convert_to_hexint(k) + ': ' + convert_to_hexint(v) for k,v in value.items()) + '}'
 	elif isinstance(value, (set,)):
 		return '{' + ', '.join(convert_to_hexint(v) for v in value) + '}'
-	elif isinstance(value, (Iterable,)):
-		return '(' + ', '.join(convert_to_hexint(v) for v in value) + ')'
-	elif isinstance(value, (Mapping,)):
-		return '{' + ', '.join(convert_to_hexint(k) + ': ' + convert_to_hexint(value[k]) for k in value) + '}'
+	#elif isinstance(value, (Iterable,)):
+	#	return '(' + ', '.join(convert_to_hexint(v) for v in value) + ')'
+	#elif isinstance(value, (Mapping,)):
+	#	return '{' + ', '.join(convert_to_hexint(k) + ': ' + convert_to_hexint(value[k]) for k in value) + '}'
 	else:
 		return repr(value)
 
