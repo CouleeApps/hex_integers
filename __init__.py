@@ -11,10 +11,17 @@ def convert_to_hexint(value, seen, top=False):
 	seen = seen + [value]
 
 	if isinstance(value, (int,)):
-		if top:
-			return f"{value} / 0x{value:x}"
+		# Could be an enum
+		if value.__repr__ != (0).__repr__:
+			if top:
+				return f"{repr(value)} / {value} / 0x{value:x}"
+			else:
+				return repr(value)
 		else:
-			return f"0x{value:x}"
+			if top:
+				return f"{value} / 0x{value:x}"
+			else:
+				return f"0x{value:x}"
 	elif isinstance(value, (float,)) and (value % 1) < 0.0001:
 		value = int(value)
 		if top:
@@ -49,8 +56,10 @@ def new_displayhook(value):
 			if len(conts) > 100:
 				conts.append(Ellipsis)
 				break
-		value = conts
-	print(convert_to_hexint(value, [], True))
+		
+		print('(generator) ' + convert_to_hexint(conts, [], True))
+	else:
+		print(convert_to_hexint(value, [], True))
 
 
 setattr(sys, 'displayhook', new_displayhook)
