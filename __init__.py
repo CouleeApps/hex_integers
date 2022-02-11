@@ -1,7 +1,8 @@
 from collections.abc import Generator, Iterable, Mapping
 import binaryninja
-import sys
 import builtins
+import itertools
+import sys
 
 original_displayhook = sys.__displayhook__
 
@@ -53,7 +54,13 @@ def convert_to_hexint(value, seen, top=False):
 
 
 def new_displayhook(value):
+	# Python docs say:
+	# Set '_' to None to avoid recursion
+	builtins._ = None
+	value_copy = value
 	if isinstance(value, (Generator,)) or hasattr(value, '__next__'):
+		# Save generator state so we don't consume _
+		value_copy, value = itertools.tee(value, 2)
 		conts = []
 		for v in value:
 			conts.append(v)
@@ -66,7 +73,7 @@ def new_displayhook(value):
 		result = convert_to_hexint(value, [], True)
 		if result:
 			print(result)
-	builtins._ = value
+	builtins._ = value_copy
 
 
 setattr(sys, 'displayhook', new_displayhook)
