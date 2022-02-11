@@ -61,7 +61,7 @@ def new_displayhook(value):
 				conts.append(Ellipsis)
 				break
 
-		#print('(generator) ' + convert_to_hexint(conts, [], True))
+		print('(generator) ' + convert_to_hexint(conts, [], True))
 	else:
 		result = convert_to_hexint(value, [], True)
 		if result:
