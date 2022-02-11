@@ -1,6 +1,7 @@
 from collections.abc import Generator, Iterable, Mapping
 import binaryninja
 import sys
+import builtins
 
 original_displayhook = sys.__displayhook__
 
@@ -9,8 +10,11 @@ def convert_to_hexint(value, seen, top=False):
 	if value in seen:
 		return "<recursion>"
 	seen = seen + [value]
-
-	if isinstance(value, (int,)):
+	if isinstance(value, (bool,)):
+		return repr(value)
+	elif value is None:
+		return
+	elif isinstance(value, (int,)):
 		# Could be an enum or something else with a custom repr()
 		if value.__repr__.__qualname__ != 'int.__repr__':
 			if top:
@@ -56,10 +60,13 @@ def new_displayhook(value):
 			if len(conts) > 100:
 				conts.append(Ellipsis)
 				break
-		
+
 		print('(generator) ' + convert_to_hexint(conts, [], True))
 	else:
-		print(convert_to_hexint(value, [], True))
+		result = convert_to_hexint(value, [], True)
+		if result:
+			print(result)
+	builtins._ = value
 
 
 setattr(sys, 'displayhook', new_displayhook)

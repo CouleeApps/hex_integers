@@ -23,10 +23,8 @@
     "Linux": "no special instructions, package manager is recommended",
     "Windows": "no special instructions, package manager is recommended"
   },
-  "dependencies": {
-    
-  },
-  "version": "1.0",
+  "dependencies": {},
+  "version": "1.1",
   "author": "Glenn Smith",
   "minimumbinaryninjaversion": 2846
 }
