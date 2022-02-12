@@ -18,7 +18,7 @@ def convert_to_hexint(value, seen, top=False):
 	elif isinstance(value, (int,)):
 		# Could be an enum or something else with a custom repr()
 		if value.__repr__.__qualname__ != 'int.__repr__':
-			if top:
+			if top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
 				# Enums already include the decimal in repr()
 				if f"{value}" in repr(value):
 					return f"{repr(value)} / 0x{value:x}"
@@ -27,13 +27,13 @@ def convert_to_hexint(value, seen, top=False):
 			else:
 				return repr(value)
 		else:
-			if top:
+			if top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
 				return f"{value} / 0x{value:x}"
 			else:
 				return f"0x{value:x}"
 	elif isinstance(value, (float,)) and (value % 1) < 0.0001:
 		value = int(value)
-		if top:
+		if top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
 			return f"~{value} / ~0x{value:x}"
 		else:
 			return f"~0x{value:x}"
@@ -58,15 +58,15 @@ def new_displayhook(value):
 	# Set '_' to None to avoid recursion
 	builtins._ = None
 	value_copy = value
-	if isinstance(value, (Generator,)) or hasattr(value, '__next__'):
+	if (isinstance(value, (Generator,)) or hasattr(type(value), '__next__')) and binaryninja.Settings().get_bool("python.hexIntegers.generators"):
 		# Save generator state so we don't consume _
 		value_copy, value = itertools.tee(value, 2)
 		conts = []
 		for v in value:
-			conts.append(v)
-			if len(conts) > 100:
+			if len(conts) >= binaryninja.Settings().get_integer("python.hexIntegers.generatorLength"):
 				conts.append(Ellipsis)
 				break
+			conts.append(v)
 
 		print('(generator) ' + convert_to_hexint(conts, [], True))
 	else:
@@ -77,3 +77,30 @@ def new_displayhook(value):
 
 
 setattr(sys, 'displayhook', new_displayhook)
+
+binaryninja.Settings().register_setting("python.hexIntegers.generatorLength", '''
+	{
+		"title" : "Generator Preview Length",
+		"description" : "How many items to preview when displaying generators.",
+		"default" : 100,
+		"minValue" : 0,
+		"maxValue" : 1000,
+		"type" : "number"
+	}
+''')
+binaryninja.Settings().register_setting("python.hexIntegers.generators", '''
+	{
+		"title" : "Generator Previews",
+		"description" : "If generators should be loaded and previewed when displayed.",
+		"default" : true,
+		"type" : "boolean"
+	}
+''')
+binaryninja.Settings().register_setting("python.hexIntegers.alsoDecimal", '''
+	{
+		"title" : "Show Decimal",
+		"description" : "If integers should decimal, as well as hexadecimal values.",
+		"default" : true,
+		"type" : "boolean"
+	}
+''')
