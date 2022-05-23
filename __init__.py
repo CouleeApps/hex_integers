@@ -3,9 +3,46 @@ import binaryninja
 import builtins
 import itertools
 import sys
+import pprint
 
 original_displayhook = sys.__displayhook__
 
+
+class HexIntPPrint(pprint.PrettyPrinter):
+	def __init__(self, indent=1, width=80, depth=None, stream=None, *, compact=False, sort_dicts=True, underscore_numbers=False, top=False):
+		self._top = top
+		super().__init__(indent, width, depth, stream, compact=compact, sort_dicts=sort_dicts, underscore_numbers=underscore_numbers)
+
+	def _safe_repr(self, object, context, maxlevels, level):
+		# Return triple (repr_string, isreadable, isrecursive).
+		typ = type(object)
+		r = getattr(typ, "__repr__", None)
+
+		if object is Ellipsis:
+			return '...', True, False
+
+		if issubclass(typ, int) and r is int.__repr__:
+			if object.__repr__.__qualname__ != 'int.__repr__':
+				if self._top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
+					# Enums already include the decimal in repr()
+					if f"{object}" in repr(object):
+						return f"{repr(object)} / 0x{object:x}", True, False
+					else:
+						return f"{repr(object)} / {object} / 0x{object:x}", True, False
+			else:
+				if self._top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
+					return f"{object} / 0x{object:x}", True, False
+				else:
+					return f"0x{object:x}", True, False
+		elif isinstance(object, (float,)) and (object % 1) < 0.0001:
+			object = int(object)
+			if self._top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
+				return f"~{object} / ~0x{object:x}", True, False
+			else:
+				return f"~0x{object:x}", True, False
+
+		self._top = False
+		return super()._safe_repr(object, context, maxlevels, level)
 
 def convert_to_hexint(value, seen, top=False):
 	if value in seen:
@@ -68,9 +105,21 @@ def new_displayhook(value):
 				break
 			conts.append(v)
 
-		print('(generator) ' + convert_to_hexint(conts, [], True))
+		if binaryninja.Settings().get_bool("python.hexIntegers.prettyPrint"):
+			width = binaryninja.Settings().get_integer("python.hexIntegers.prettyPrintWidth")
+			if width < 1:
+				width = 80
+			print('(generator) ' + HexIntPPrint(width=width, top=True).pformat(conts))
+		else:
+			print('(generator) ' + convert_to_hexint(conts, [], True))
 	else:
-		result = convert_to_hexint(value, [], True)
+		if binaryninja.Settings().get_bool("python.hexIntegers.prettyPrint"):
+			width = binaryninja.Settings().get_integer("python.hexIntegers.prettyPrintWidth")
+			if width < 1:
+				width = 80
+			result = HexIntPPrint(width=width, top=True).pformat(value)
+		else:
+			result = convert_to_hexint(value, [], True)
 		if result:
 			print(result)
 	builtins._ = value_copy
@@ -102,5 +151,23 @@ binaryninja.Settings().register_setting("python.hexIntegers.alsoDecimal", '''
 		"description" : "If integers should decimal, as well as hexadecimal values.",
 		"default" : true,
 		"type" : "boolean"
+	}
+''')
+binaryninja.Settings().register_setting("python.hexIntegers.prettyPrint", '''
+	{
+		"title" : "Pretty Print",
+		"description" : "Output should be pretty-printed using pprint.",
+		"default" : false,
+		"type" : "boolean"
+	}
+''')
+binaryninja.Settings().register_setting("python.hexIntegers.prettyPrintWidth", '''
+	{
+		"title" : "Pretty Print Width",
+		"description" : "Attempted maximum number of columns in the pretty printed output. (Default: 80)",
+		"default" : 80,
+		"minValue" : 1,
+		"maxValue" : 10000,
+		"type" : "number"
 	}
 ''')
