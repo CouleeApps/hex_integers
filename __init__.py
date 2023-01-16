@@ -14,7 +14,10 @@ def convert_to_hexint(value, seen, top=False):
 	if isinstance(value, (bool,)):
 		return repr(value)
 	elif value is None:
-		return
+		if top and not binaryninja.Settings().get_bool("python.hexIntegers.showTopNone"):
+			return
+		else:
+			return 'None'
 	elif isinstance(value, (int,)):
 		# Could be an enum or something else with a custom repr()
 		if value.__repr__.__qualname__ != 'int.__repr__':
@@ -44,7 +47,7 @@ def convert_to_hexint(value, seen, top=False):
 	elif isinstance(value, (list,)):
 		return '[' + ', '.join(convert_to_hexint(v, seen) for v in value) + ']'
 	elif isinstance(value, (dict,)):
-		return '{' + ', '.join(convert_to_hexint(k, seen) + ': ' + convert_to_hexint(v, seen) for k,v in value.items()) + '}'
+		return '{' + ', '.join(convert_to_hexint(k, seen) + ': ' + convert_to_hexint(v, seen) for k, v in value.items()) + '}'
 	elif isinstance(value, (set,)):
 		return '{' + ', '.join(convert_to_hexint(v, seen) for v in value) + '}'
 	elif value is Ellipsis:
@@ -71,7 +74,7 @@ def new_displayhook(value):
 		print('(generator) ' + convert_to_hexint(conts, [], True))
 	else:
 		result = convert_to_hexint(value, [], True)
-		if result:
+		if result is not None:
 			print(result)
 	builtins._ = value_copy
 
@@ -101,6 +104,14 @@ binaryninja.Settings().register_setting("python.hexIntegers.alsoDecimal", '''
 		"title" : "Show Decimal",
 		"description" : "If integers should decimal, as well as hexadecimal values.",
 		"default" : true,
+		"type" : "boolean"
+	}
+''')
+binaryninja.Settings().register_setting("python.hexIntegers.showTopNone", '''
+	{
+		"title" : "Show Top-Level 'None' Value",
+		"description" : "If the expression typed returns 'None', should 'None' be printed?",
+		"default" : false,
 		"type" : "boolean"
 	}
 ''')
