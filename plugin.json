@@ -24,7 +24,7 @@
     "Windows": "no special instructions, package manager is recommended"
   },
   "dependencies": {},
-  "version": "1.8",
+  "version": "1.9",
   "author": "Glenn Smith",
   "minimumbinaryninjaversion": 2846
 }
