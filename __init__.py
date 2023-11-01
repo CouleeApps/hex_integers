@@ -128,6 +128,9 @@ def screen_width():
 
 
 def do_print(value):
+	if value is None and not binaryninja.Settings().get_bool("python.hexIntegers.showTopNone"):
+		return
+
 	if binaryninja.Settings().get_bool("python.hexIntegers.prettyPrint"):
 		result = HexIntPPrint(width=screen_width(), top=True).pformat(value)
 	else:
