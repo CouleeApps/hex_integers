@@ -5,9 +5,12 @@ import itertools
 import pprint
 import sys
 import traceback
+import time
 
 original_displayhook = sys.__displayhook__
 original_print = builtins.print
+LAST_WIDTH_CHECK = 0
+WIDTH_CACHE = None
 
 
 class HexIntPPrint(pprint.PrettyPrinter):
@@ -96,12 +99,37 @@ def convert_to_hexint(value, seen, top=False):
 		return repr(value)
 
 
+def screen_width():
+	global LAST_WIDTH_CHECK
+	global WIDTH_CACHE
+	if time.time() - LAST_WIDTH_CHECK > 0.5 or WIDTH_CACHE is None:
+		LAST_WIDTH_CHECK = time.time()
+		WIDTH_CACHE = binaryninja.Settings().get_integer("python.hexIntegers.prettyPrintWidth")
+		if WIDTH_CACHE < 1:
+			WIDTH_CACHE = 80
+			try:
+				import binaryninjaui
+				import PySide6
+				context: binaryninjaui.UIContext = binaryninjaui.UIContext.activeContext()
+				window = context.mainWindow()
+				consoles = window.findChildren(binaryninjaui.ScriptingConsole)
+
+				for console in consoles:
+					if console.getProviderName() == "Python":
+						output = console.findChild(binaryninjaui.ScriptingConsoleOutput)
+						visible_width = output.document().size().width() - (output.document().documentMargin() * 2)
+						font = output.font()
+						metrics = PySide6.QtGui.QFontMetricsF(font)
+						WIDTH_CACHE = int(visible_width / metrics.horizontalAdvance("X"))
+						break
+			except:
+				pass
+	return WIDTH_CACHE
+
+
 def do_print(value):
 	if binaryninja.Settings().get_bool("python.hexIntegers.prettyPrint"):
-		width = binaryninja.Settings().get_integer("python.hexIntegers.prettyPrintWidth")
-		if width < 1:
-			width = 80
-		result = HexIntPPrint(width=width, top=True).pformat(value)
+		result = HexIntPPrint(width=screen_width(), top=True).pformat(value)
 	else:
 		result = convert_to_hexint(value, [], True)
 	return result
@@ -220,9 +248,9 @@ binaryninja.Settings().register_setting("python.hexIntegers.showTopNone", '''
 binaryninja.Settings().register_setting("python.hexIntegers.prettyPrintWidth", '''
 	{
 		"title" : "Pretty Print Width",
-		"description" : "Attempted maximum number of columns in the pretty printed output. (Default: 80)",
-		"default" : 80,
-		"minValue" : 1,
+		"description" : "Attempted maximum number of columns in the pretty printed output. 0: Calculate width from interpreter window. (Default: 0)",
+		"default" : 0,
+		"minValue" : 0,
 		"maxValue" : 10000,
 		"type" : "number"
 	}
