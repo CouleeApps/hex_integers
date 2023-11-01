@@ -2,10 +2,12 @@ from collections.abc import Generator
 import binaryninja
 import builtins
 import itertools
-import sys
 import pprint
+import sys
+import traceback
 
 original_displayhook = sys.__displayhook__
+original_print = builtins.print
 
 
 class HexIntPPrint(pprint.PrettyPrinter):
@@ -43,6 +45,7 @@ class HexIntPPrint(pprint.PrettyPrinter):
 
 		self._top = False
 		return super()._safe_repr(object, context, maxlevels, level)
+
 
 def convert_to_hexint(value, seen, top=False):
 	if value in seen:
@@ -93,13 +96,29 @@ def convert_to_hexint(value, seen, top=False):
 		return repr(value)
 
 
+def do_print(value):
+	if binaryninja.Settings().get_bool("python.hexIntegers.prettyPrint"):
+		width = binaryninja.Settings().get_integer("python.hexIntegers.prettyPrintWidth")
+		if width < 1:
+			width = 80
+		result = HexIntPPrint(width=width, top=True).pformat(value)
+	else:
+		result = convert_to_hexint(value, [], True)
+	return result
+
+
+def can_extract_generator(value):
+	return (isinstance(value, (Generator,)) or hasattr(type(value), '__next__')) and binaryninja.Settings().get_bool("python.hexIntegers.generators")
+
+
 def new_displayhook(value):
 	# Python docs say:
 	# Set '_' to None to avoid recursion
 	builtins._ = None
 	value_copy = value
-	if (isinstance(value, (Generator,)) or hasattr(type(value), '__next__')) and binaryninja.Settings().get_bool("python.hexIntegers.generators"):
+	if can_extract_generator(value):
 		# Save generator state so we don't consume _
+		type_name = type(value).__name__
 		value_copy, value = itertools.tee(value, 2)
 		conts = []
 		for v in value:
@@ -108,27 +127,53 @@ def new_displayhook(value):
 				break
 			conts.append(v)
 
-		if binaryninja.Settings().get_bool("python.hexIntegers.prettyPrint"):
-			width = binaryninja.Settings().get_integer("python.hexIntegers.prettyPrintWidth")
-			if width < 1:
-				width = 80
-			print('(generator) ' + HexIntPPrint(width=width, top=True).pformat(conts))
-		else:
-			print('(generator) ' + convert_to_hexint(conts, [], True))
+		original_print(f'(generator {type_name}) ' + do_print(conts))
 	else:
-		if binaryninja.Settings().get_bool("python.hexIntegers.prettyPrint"):
-			width = binaryninja.Settings().get_integer("python.hexIntegers.prettyPrintWidth")
-			if width < 1:
-				width = 80
-			result = HexIntPPrint(width=width, top=True).pformat(value)
-		else:
-			result = convert_to_hexint(value, [], True)
+		result = do_print(value)
 		if result is not None:
-			print(result)
+			original_print(result)
 	builtins._ = value_copy
 
 
+def print_override(*args, **kwargs):
+	# To not break scripts, only hook this if we're in the script interpreter
+	in_script_provider = False
+	for frame in traceback.extract_stack():
+		if frame.filename == binaryninja.scriptingprovider.__file__:
+			in_script_provider = True
+			break
+	if not in_script_provider:
+		original_print(*args, **kwargs)
+		return
+
+	# Generator extraction is only done for basic print calls
+	if len(args) == 1 and len(kwargs) == 0 and can_extract_generator(args[0]):
+		# Save generator state so we don't consume _
+		conts = []
+		type_name = type(args[0]).__name__
+		for v in args[0]:
+			if len(conts) >= binaryninja.Settings().get_integer("python.hexIntegers.generatorLength"):
+				conts.append(Ellipsis)
+				break
+			conts.append(v)
+
+		original_print(f'(generator {type_name}) ' + do_print(conts))
+		return
+
+	# Otherwise, convert all args to hexint and print
+	def convert_arg(arg):
+		if type(arg) is str:
+			# Special for print(): strings are printed bare
+			return arg
+		else:
+			return do_print(arg)
+
+	args = [convert_arg(arg) for arg in args]
+	return original_print(*args, **kwargs)
+
+
 setattr(sys, 'displayhook', new_displayhook)
+setattr(builtins, 'print', print_override)
 
 binaryninja.Settings().register_setting("python.hexIntegers.generatorLength", '''
 	{
@@ -151,7 +196,7 @@ binaryninja.Settings().register_setting("python.hexIntegers.generators", '''
 binaryninja.Settings().register_setting("python.hexIntegers.alsoDecimal", '''
 	{
 		"title" : "Show Decimal",
-		"description" : "If integers should decimal, as well as hexadecimal values.",
+		"description" : "If integers should print decimal, as well as hexadecimal values. Result is formatted like '123 / 0x7b'. Only applies to top-level integers.",
 		"default" : true,
 		"type" : "boolean"
 	}
