@@ -13,6 +13,14 @@ LAST_WIDTH_CHECK = 0
 WIDTH_CACHE = None
 
 
+def append_0x(value):
+	# There's probably a builtin for this
+	if value < 0:
+		return f"-0x{-value:x}"
+	else:
+		return f"0x{value:x}"
+
+
 class HexIntPPrint(pprint.PrettyPrinter):
 	def __init__(self, indent=1, width=80, depth=None, stream=None, *, compact=False, sort_dicts=True, underscore_numbers=False, top=False):
 		self._top = top
@@ -31,20 +39,20 @@ class HexIntPPrint(pprint.PrettyPrinter):
 				if self._top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
 					# Enums already include the decimal in repr()
 					if f"{object}" in repr(object):
-						return f"{repr(object)} / 0x{object:x}", True, False
+						return f"{repr(object)} / {append_0x(object)}", True, False
 					else:
-						return f"{repr(object)} / {object} / 0x{object:x}", True, False
+						return f"{repr(object)} / {object} / {append_0x(object)}", True, False
 			else:
 				if self._top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
-					return f"{object} / 0x{object:x}", True, False
+					return f"{object} / {append_0x(object)}", True, False
 				else:
-					return f"0x{object:x}", True, False
-		elif isinstance(object, (float,)) and (object % 1) < 0.0001:
+					return f"{append_0x(object)}", True, False
+		elif isinstance(object, (float,)) and abs(object) % 1 < 0.0001:
 			object = int(object)
 			if self._top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
-				return f"~{object} / ~0x{object:x}", True, False
+				return f"~{object} / ~{append_0x(object)}", True, False
 			else:
-				return f"~0x{object:x}", True, False
+				return f"~{append_0x(object)}", True, False
 
 		self._top = False
 		return super()._safe_repr(object, context, maxlevels, level)
@@ -67,22 +75,22 @@ def convert_to_hexint(value, seen, top=False):
 			if top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
 				# Enums already include the decimal in repr()
 				if f"{value}" in repr(value):
-					return f"{repr(value)} / 0x{value:x}"
+					return f"{repr(value)} / {append_0x(value)}"
 				else:
-					return f"{repr(value)} / {value} / 0x{value:x}"
+					return f"{repr(value)} / {value} / {append_0x(value)}"
 			else:
 				return repr(value)
 		else:
 			if top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
-				return f"{value} / 0x{value:x}"
+				return f"{value} / {append_0x(value)}"
 			else:
-				return f"0x{value:x}"
-	elif isinstance(value, (float,)) and (value % 1) < 0.0001:
+				return f"{append_0x(value)}"
+	elif isinstance(value, (float,)) and abs(value) % 1 < 0.0001:
 		value = int(value)
 		if top and binaryninja.Settings().get_bool("python.hexIntegers.alsoDecimal"):
-			return f"~{value} / ~0x{value:x}"
+			return f"~{value} / ~{append_0x(value)}"
 		else:
-			return f"~0x{value:x}"
+			return f"~{append_0x(value)}"
 	elif isinstance(value, (str,)):
 		return repr(value)
 	elif isinstance(value, (tuple,)):
